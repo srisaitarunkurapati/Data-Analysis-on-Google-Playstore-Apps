@@ -103,3 +103,624 @@ play_store.Price.value_counts()
 
 play_store['Content Rating'].value_counts()
 
+play_store[play_store["Content Rating"] == "Unrated"]
+
+# we will tyr to impute the missing value by using the most_frequent value of the column that is most probably everyone
+from sklearn.impute import SimpleImputer
+imputer_CR = SimpleImputer(missing_values="Unrated", strategy = "most_frequent")
+imputer_CR.fit(pd.DataFrame(play_store["Content Rating"]))
+play_store["Content Rating"] = imputer_CR.transform(pd.DataFrame(play_store["Content Rating"]))
+
+play_store['Content Rating'].value_counts()
+
+di={'Everyone':0, 'Everyone 10+':10, 'Teen':13, 'Mature 17+':17, 'Adults only 18+':18}
+play_store=play_store.replace({"Content Rating":di})
+
+play_store['Content Rating'].value_counts()
+
+play_store.Size.value_counts()
+
+# function to convert KBs to MBs and replacing varies with device with Nan
+def clean_size_category(s):
+    if s[-1:] == "M":
+        clean_size = float(s[:-1])
+    elif s[-1:] == "k":
+        clean_size = float(s[:-1]) / 1000                          # converting to Mb from Kb
+    else:
+        clean_size = None                                          # replacing with None considered as Nan
+    return clean_size
+play_store["Size"] = play_store["Size"].map(clean_size_category)
+
+play_store.Size.value_counts()
+
+size_imputer = SimpleImputer(missing_values= np.nan ,strategy = "mean")
+size_imputer.fit(pd.DataFrame(play_store["Size"]))
+play_store["Size"] = size_imputer.transform(pd.DataFrame(play_store["Size"]))
+
+play_store.Category.value_counts()
+
+play_store.Category.nunique()
+
+unique_categories = play_store["Category"].unique()
+count = []
+for i in unique_categories:
+    count.append([play_store[(play_store["Category"] == i)]["Category"].count(), i])
+
+# sorting the values depending on count
+count.sort()
+
+# generating list of range=33
+range_list = range(33)
+
+for i,j in zip(count, range_list):
+    play_store["Category"] = (play_store["Category"].replace(i[1], j, regex=True))
+
+play_store["Category"] = play_store["Category"].astype("int")
+count
+
+play_store.Genres.value_counts()
+
+play_store = play_store.drop(["Genres"], axis=1)
+
+play_store.head()
+
+play_store.shape
+
+play_store.drop_duplicates(subset='App', inplace=True)
+
+play_store.shape
+
+play_store.dtypes
+
+def convert_installs_to_buckets(install):
+    if install<=10000:
+        return 'Low'
+    elif (install>10000 and install<=1000000):
+        return 'Medium'
+    elif (install>1000000):
+        return 'High'
+
+play_store['Installs']=play_store['Installs'].map(convert_installs_to_buckets)
+
+play_store.head()
+
+r = play_store['Rating'].dropna()
+s = play_store['Size'].dropna()
+i = play_store['Installs'].dropna()
+rev = play_store['Reviews'].dropna()
+t = play_store['Type'].dropna()
+price = play_store['Price']
+
+p = sns.pairplot(pd.DataFrame(list(zip(r, s, i, np.log10(rev), price, t)), 
+                        columns=['Rating','Size', 'Installs', 'Reviews', 'Price','Type']), hue='Type', palette="GnBu_d")
+p.fig.suptitle("Pairwise Plot - Rating, Size, Installs, Reviews, Price", y=1.02, fontsize=16)
+
+sns.set_style("darkgrid")
+ax = sns.jointplot(play_store['Size'], play_store['Rating'])
+ax.fig.suptitle("Rating vs Size of Apps", y = 1.02, fontsize=14 )
+
+## Sizing distribution of top rated apps (>= 4.5) 
+play_store_df_top_rated = play_store[play_store["Rating"]>=4.5]
+sizing_distribution = [go.Histogram(x = play_store_df_top_rated.Size,)]
+print('Average size of top rated apps = ', np.mean(play_store_df_top_rated['Size']))
+#plotly.offline.iplot(sizing_distribution, filename='overall_sizing_distribution')
+layout =dict(title = 'Average Size of top rated apps',
+             xaxis = dict(title = 'Size of Apps'),
+             yaxis = dict(title = 'Distribution'),
+             )
+sizing_distribution = dict(data = sizing_distribution, layout = layout)
+plotly.offline.iplot(sizing_distribution, filename='overall_sizing_distribution')
+
+bulky_apps = play_store[play_store["Size"]>40]
+group_category = bulky_apps.groupby("Category")["Size"].count().sort_values(ascending=False).reset_index().head()
+
+plt.figure(figsize=(8, 6))
+sns.set(font_scale=1)
+sns.set_style("darkgrid")
+ax = sns.barplot(x="Category", y="Size", data=group_category, color = "darkcyan")
+ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha="right")
+plt.title('Count of Bulky Apps per Category',size = 14)
+plt.savefig("Count_bulky")
+
+paid_apps = play_store[play_store.Price>0]
+p = sns.jointplot( "Price", "Rating", paid_apps)
+
+size_paid_apps = paid_apps['Size'].dropna()
+plt.figure(figsize=(8, 6))
+ax = sns.distplot(size_paid_apps, color="darkcyan")
+
+play_store.head()
+
+play_store['Category'].unique()
+
+top_categories =  play_store[play_store.Category.isin(play_store['Category'].unique())]
+
+plt.figure(figsize=(12, 6))
+sns.set(font_scale=1)
+sns.set_style("darkgrid")
+ax = sns.catplot(x="Price", y="Category", kind="swarm", data=top_categories)
+plt.title('App pricing trend across categories',size = 14)
+
+
+top_categories = play_store.groupby("Category").filter(lambda x: len(x) > 200).reset_index()
+array = top_categories['Rating'].hist(by=top_categories['Category'], sharex=True, figsize=(20,20))
+
+topcat = play_store.groupby('Category').filter(lambda x: len(x) >= 170).reset_index()
+sns.set_style("darkgrid")
+fig, ax = plt.subplots()
+fig.set_size_inches(11.7, 8.27)
+plt.title("App Ratings Across Major Categories", fontsize=16)
+ax = sns.boxplot(x='Category', y='Rating', data=topcat, palette='Blues', showmeans=True)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha="right")
+
+
+# function to plot a boxplot and a histogram along the same scale.
+
+def histogram_boxplot(data, feature, figsize=(13, 7), kde=False, bins=None):
+    """
+    Boxplot and histogram combined for the data
+
+    data: the dataframe given as input
+    feature: columns
+    figsize: size of fig (default (13,7))
+    kde: To show density curve (default False)
+    bins: number of bins for histogram done(default None)
+    """
+    f2, (ax_box2, ax_hist2) = plt.subplots(
+        nrows=2,  # Number of rows of the subplot grid= 2
+        sharex=True,  # x-axis will be shared among all subplots
+        gridspec_kw={"height_ratios": (0.25, 0.75)},
+        figsize=figsize,
+    )  # creating the 2 subplots
+    sns.boxplot(
+        data=data, x=feature, ax=ax_box2, showmeans=True, color="violet"
+    )  # boxplot will be created and a star symbol will indicate the mean value of the column
+    sns.histplot(
+        data=data, x=feature, kde=kde, ax=ax_hist2, bins=bins, palette="winter"
+    ) if bins else sns.histplot(
+        data=data, x=feature, kde=kde, ax=ax_hist2
+    )  # For histogram
+    ax_hist2.axvline(
+        data[feature].mean(), color="green", linestyle="--"
+    )  # Add mean to the histogram
+    ax_hist2.axvline(
+        data[feature].median(), color="black", linestyle="-"
+    )  # Add median to the histogram
+    
+    histogram_boxplot(play_store, "Category")
+    
+    histogram_boxplot(play_store, "Rating")
+    
+    histogram_boxplot(play_store, "Reviews")
+    
+    histogram_boxplot(play_store, "Size")
+    
+    histogram_boxplot(play_store, "Content Rating")
+    
+    plt.figure(figsize=(10,7))
+sns.boxplot(data=play_store, x="Installs",y="Content Rating")
+
+plt.figure(figsize=(10,7))
+sns.boxplot(data=play_store, x="Installs",y="Rating")
+
+import scipy.stats as stats
+import pylab
+def plot_distribution(df, col):
+    plt.figure(figsize=(12,6))
+    plt.subplot(1,3,1)
+    df[col].hist()
+    plt.subplot(1,3,2)
+    stats.probplot(df[col], dist="norm", plot=pylab)
+    plt.subplot(1,3,3)
+    np.log(df[col]).hist()
+    plt.show()
+    
+    plot_distribution(play_store, 'Rating')
+    
+    plot_distribution(play_store, 'Size')
+    
+    plot_distribution(play_store, 'Reviews')
+    
+    sns.pairplot(play_store)
+    
+    sns.set_style("darkgrid")
+ax = sns.jointplot(play_store['Size'], play_store['Rating'])
+ax.fig.suptitle("Rating vs App Size", y = 1.04, fontsize=13 )
+
+paid_apps = play_store[play_store.Price>0]
+p = sns.jointplot( "Price", "Rating", paid_apps)
+
+size_paid_apps = paid_apps['Size'].dropna()
+plt.figure(figsize=(10,7))
+sns.distplot(size_paid_apps)
+
+# function to plot stacked bar chart
+
+
+def stacked_barplot(data, predictor, target):
+    """
+    Print the category counts and plot a stacked bar chart
+
+    data: dataframe
+    predictor: independent variable
+    target: target variable
+    """
+    count = data[predictor].nunique()
+    sorter = data[target].value_counts().index[-1]
+    tab1 = pd.crosstab(data[predictor], data[target], margins=True).sort_values(
+        by=sorter, ascending=False
+    )
+    print(tab1)
+    print("-" * 120)
+    tab = pd.crosstab(data[predictor], data[target], normalize="index").sort_values(
+        by=sorter, ascending=False
+    )
+    tab.plot(kind="bar", stacked=True, figsize=(count + 1, 5))
+    plt.legend(
+        loc="lower left", frameon=False,
+    )
+    plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    plt.show()
+    
+    stacked_barplot(play_store, "Rating", "Installs")
+    
+    play_store.head()
+    
+    stacked_barplot(play_store, "Content Rating", "Installs")
+    
+    stacked_barplot(play_store, "Category", "Installs")
+    
+    stacked_barplot(play_store, "Type", "Installs")
+    
+    plt.figure(figsize=(10,7))
+sns.heatmap(play_store.corr(method ='spearman'), annot=True, vmin=-1, vmax=1, fmt=".2f", cmap="Spectral")
+plt.show()
+
+plt.figure(figsize=(10,7))
+sns.heatmap(play_store.corr(method ='pearson'), annot=True, vmin=-1, vmax=1, fmt=".2f", cmap="Spectral")
+plt.show()
+
+play_store.head()
+
+play_store.Installs.value_counts()
+
+app_names=play_store['App']
+play_store=play_store.drop('App',axis=1)
+
+play_store.head()
+
+X=play_store.drop('Installs',axis=1)
+y=play_store['Installs'].values
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state=0)
+
+from sklearn.preprocessing import StandardScaler
+scaler=StandardScaler()
+X_train=scaler.fit_transform(X_train)
+X_test=scaler.transform(X_test)
+
+from sklearn.preprocessing import LabelEncoder
+label_encoder = LabelEncoder()
+y_train=label_encoder.fit_transform(y_train)
+y_test=label_encoder.transform(y_test)
+
+X_train
+
+y_train
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.metrics import (
+    f1_score,
+    accuracy_score,
+    recall_score,
+    precision_score,
+    confusion_matrix,
+    roc_auc_score,
+    plot_confusion_matrix,
+)
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import (
+    AdaBoostClassifier,
+    GradientBoostingClassifier,
+    RandomForestClassifier,
+    BaggingClassifier,
+)
+from xgboost import XGBClassifier
+
+# defining a function to compute different metrics to check performance of a classification model built using sklearn
+def model_performance_classification_sklearn(model, predictors, target):
+    """
+    Function to compute different metrics to check classification model performance
+
+    model: classifier
+    predictors: independent variables
+    target: dependent variable
+    """
+
+    # predicting using the independent variables
+    pred = model.predict(predictors)
+
+    acc = accuracy_score(target, pred)  # to compute Accuracy
+    recall = recall_score(target, pred,average='weighted')  # to compute Recall
+    precision = precision_score(target, pred,average='weighted')  # to compute Precision
+    f1 = f1_score(target, pred,average='weighted')  # to compute F1-score
+
+    # creating a dataframe of metrics
+    df_perf = pd.DataFrame(
+        {"Accuracy": acc, "Recall": recall, "Precision": precision, "F1": f1,},
+        index=[0],
+    )
+
+    return df_perf
+    
+    def confusion_matrix_sklearn(model, predictors, target):
+    """
+    To plot the confusion_matrix with percentages
+
+    model: classifier
+    predictors: independent variables
+    target: dependent variable
+    """
+    y_pred = model.predict(predictors)
+    cm = confusion_matrix(target, y_pred)
+    labels = np.asarray(
+        [
+            ["{0:0.0f}".format(item) + "\n{0:.2%}".format(item / cm.flatten().sum())]
+            for item in cm.flatten()
+        ]
+    ).reshape(3,3)
+    
+    plt.figure(figsize=(10,7))
+    ax= plt.subplot()
+    sns.heatmap(cm, annot=labels, fmt="",ax=ax)
+
+    ax.set_ylabel("True label")
+    ax.set_xlabel("Predicted label")
+    ax.xaxis.set_ticklabels(['Not so Popular','Moderately Popular','Highly Popular']); ax.yaxis.set_ticklabels(['Not so Popular','Moderately Popular','Highly Popular'])
+    plt.show()
+    
+    from collections import Counter
+from collections import OrderedDict
+
+### Dictionary to store model and its accuracy
+
+model_accuracy = OrderedDict()
+### Dictionary to store model and its precision
+
+model_precision = OrderedDict()
+### Dictionary to store model and its recall
+
+model_recall = OrderedDict()
+
+models = []  # Empty list to store all the models
+
+# Appending models into the list
+models.append(("Logistic regression", LogisticRegression(random_state=1)))
+models.append(("Random forest", RandomForestClassifier(random_state=1)))
+models.append(("GBM", GradientBoostingClassifier(random_state=1)))
+models.append(("Xgboost", XGBClassifier(random_state=1, eval_metric="logloss")))
+models.append(("dtree", DecisionTreeClassifier(random_state=1)))
+
+results3 = []  # Empty list to store all model's CV scores
+names = []  # Empty list to store name of the models
+
+
+# loop through all models to get the mean cross validated score
+print("\n" "Cross-Validation Performance:" "\n")
+
+for name, model in models:
+    scoring = "accuracy"
+    kfold = StratifiedKFold(
+        n_splits=5, shuffle=True, random_state=1
+    )  # Setting number of splits equal to 5
+    cv_result = cross_val_score(
+        estimator=model, X=X_train, y=y_train, scoring=scoring, cv=kfold
+    )
+    results3.append(cv_result)
+    names.append(name)
+    print("{}: {}".format(name, cv_result.mean() * 100))
+
+print("\n" "Validation Performance:" "\n")
+
+for name, model in models:
+    model.fit(X_train, y_train)
+    scores = recall_score(y_test, model.predict(X_test),average='weighted')
+    print("{}: {}".format(name, scores))
+    
+    %%time 
+
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn import metrics
+#Creating pipeline
+Model = GradientBoostingClassifier(random_state=1)
+
+#Parameter grid to pass in RandomSearchCV
+param_grid = {
+    "init": [AdaBoostClassifier(random_state=1),DecisionTreeClassifier(random_state=1)],
+    "n_estimators": np.arange(75,150,25),
+    "learning_rate": [0.1, 0.01, 0.2, 0.05, 1],
+    "subsample":[0.5,0.7,1],
+    "max_features":[0.5,0.7,1],
+}
+
+# Type of scoring used to compare parameter combinations
+scorer = metrics.make_scorer(metrics.accuracy_score)
+
+#Calling RandomizedSearchCV
+randomized_cv = RandomizedSearchCV(estimator=Model, param_distributions=param_grid, n_iter=50, scoring=scorer, cv=5, random_state=1, n_jobs = -1)
+
+#Fitting parameters in RandomizedSearchCV
+randomized_cv.fit(X_train,y_train)
+
+print("Best parameters are {} with CV score={}:" .format(randomized_cv.best_params_,randomized_cv.best_score_))
+
+tuned_gbm = GradientBoostingClassifier(
+    random_state=1,
+    subsample=0.7,
+    n_estimators=125,
+    max_features=0.5,
+    learning_rate=0.05,
+    init=AdaBoostClassifier(random_state=1),
+)
+tuned_gbm.fit(X_train, y_train)
+
+# Checking model's performance on training set
+gbm_train = model_performance_classification_sklearn(
+    tuned_gbm, X_train, y_train
+)
+gbm_train
+
+# Checking model's performance on validation set
+gbm_test = model_performance_classification_sklearn(tuned_gbm, X_test, y_test)
+gbm_test
+
+y_test
+
+confusion_matrix_sklearn(tuned_gbm, X_test, y_test)
+
+%%time 
+
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn import metrics
+#Creating pipeline
+Model = RandomForestClassifier(random_state=1)
+
+#Parameter grid to pass in RandomSearchCV
+param_grid = {'bootstrap': [True, False],
+ 'max_depth': [10, 30, 40, 100, None],
+ 'max_features': ['auto', 'sqrt'],
+ 'min_samples_leaf': [1, 2, 4],
+ 'min_samples_split': [2, 5, 10],
+ 'n_estimators': [50,100,200, 400]
+ }
+
+# Type of scoring used to compare parameter combinations
+scorer = metrics.make_scorer(metrics.accuracy_score)
+
+#Calling RandomizedSearchCV
+randomized_cv = RandomizedSearchCV(estimator=Model, param_distributions=param_grid, n_iter=50, scoring=scorer, cv=5, random_state=1, n_jobs = -1)
+
+#Fitting parameters in RandomizedSearchCV
+randomized_cv.fit(X_train,y_train)
+
+print("Best parameters are {} with CV score={}:" .format(randomized_cv.best_params_,randomized_cv.best_score_))
+
+tuned_rf = RandomForestClassifier(
+    bootstrap=False,
+    max_depth=100,
+    max_features='sqrt',
+    min_samples_leaf=2,
+    min_samples_split= 2,
+    n_estimators= 200,
+)
+tuned_rf.fit(X_train, y_train)
+
+# Checking model's performance on training set
+rf_train = model_performance_classification_sklearn(
+    tuned_rf, X_train, y_train
+)
+rf_train
+
+# Checking model's performance on validation set
+rf_test = model_performance_classification_sklearn(tuned_rf, X_test, y_test)
+rf_test
+
+confusion_matrix_sklearn(tuned_rf, X_test, y_test)
+
+%%time 
+
+# defining model
+Model = XGBClassifier(random_state=1,eval_metric='logloss')
+
+#Parameter grid to pass in RandomSearchCV
+param_grid={'n_estimators':np.arange(50,300,50),'scale_pos_weight':[0,1,2,5,10],
+            'learning_rate':[0.01,0.1,0.2,0.05], 'gamma':[0,1,3,5],
+            'subsample':[0.7,0.8,0.9,1]
+           }
+from sklearn import metrics
+
+# Type of scoring used to compare parameter combinations
+scorer = metrics.make_scorer(metrics.recall_score)
+
+#Calling RandomizedSearchCV
+randomized_cv = RandomizedSearchCV(estimator=Model, param_distributions=param_grid, n_iter=50, n_jobs = -1, scoring=scorer, cv=5, random_state=1)
+
+#Fitting parameters in RandomizedSearchCV
+randomized_cv.fit(X_train,y_train)
+
+print("Best parameters are {} with CV score={}:" .format(randomized_cv.best_params_,randomized_cv.best_score_))
+
+tuned_xgb = XGBClassifier(
+    random_state=1,
+    eval_metric="logloss",
+    subsample=1,
+    scale_pos_weight=5,
+    n_estimators=200,
+    learning_rate=0.01,
+    gamma=0,
+)
+tuned_xgb.fit(X_train, y_train)
+
+# Checking model's performance on train set
+xgb_train = model_performance_classification_sklearn(
+    tuned_xgb, X_train, y_train
+)
+xgb_train
+
+# Checking model's performance on validation set
+xgb_test = model_performance_classification_sklearn(tuned_xgb, X_test, y_test)
+xgb_test
+
+confusion_matrix_sklearn(tuned_xgb, X_test, y_test)
+
+#Training performance comparison
+import pandas as pd
+models_train_comparison = pd.concat(
+    [
+        xgb_train.T,
+        gbm_train.T,
+        rf_train.T,
+    ], axis=1,
+)
+models_train_comparison.columns = [
+    "XGBoost evaluated with train data",
+    "Gradient boosting evaluated with train data",
+    "Random Forest evaluated with train data",
+]
+print("Training performance comparison:")
+models_train_comparison
+
+#Training performance comparison
+models_test_comparison = pd.concat(
+    [
+        xgb_test.T,
+        gbm_test.T,
+        rf_test.T,
+    ], axis=1,
+)
+models_test_comparison.columns = [
+    "XGBoost evaluated with test data",
+    "Gradient boosting evaluated with test data",
+    "Random Forest evaluated with test data",
+]
+print("Testing performance comparison:")
+models_test_comparison
+
+l=play_store.columns.drop('Installs')
+l
+
+feature_names = ['Category', 'Rating', 'Reviews', 'Size', 'Type', 'Price', 'Content Rating']
+importances = tuned_rf.feature_importances_
+indices = np.argsort(importances)
+
+plt.figure(figsize=(12, 12))
+plt.title("Feature Importances")
+plt.barh(range(len(indices)), importances[indices], color="violet", align="center")
+plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
+plt.xlabel("Relative Importance")
+plt.show()
+
