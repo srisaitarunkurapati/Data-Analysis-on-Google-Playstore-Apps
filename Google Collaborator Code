@@ -1,0 +1,105 @@
+from google.colab import drive
+drive.mount('/content/drive')
+import pandas as pd
+import numpy as np
+
+import plotly
+plotly.offline.init_notebook_mode(connected=True)
+import plotly.graph_objs as go
+import plotly.figure_factory as ff
+
+from matplotlib import pyplot as plt
+plt.style.use('ggplot')
+%matplotlib inline
+import seaborn as sns
+color = sns.color_palette()
+sns.set(rc={'figure.figsize':(25,15)})
+
+import warnings
+warnings.filterwarnings('ignore')
+
+import pandas as pd
+play_store = pd.read_csv("/content/drive/MyDrive/Freelance/Playstore apps rating prediction/googleplaystore.csv")
+
+play_store.head()
+
+# checking shape of data
+play_store.shape
+
+# checking for the number of unique apps
+play_store.App.nunique()
+
+play_store.describe()
+play_store.info()
+
+def check_data_describing(df):
+  print(df.shape)
+  print('\n*********************************')
+  print(df.describe().transpose())
+  print('\n *********************************')
+  print(df.info())
+
+check_data_describing(play_store)
+
+categorical = play_store.dtypes[play_store.dtypes == "object"].index
+play_store[categorical].describe().transpose()
+
+# writing a function to check the following: data types, unique values, null values, duplicates
+def dirty_data_finding(df):
+    dirty_data = []
+    columns = df.columns
+    for col in columns:
+        nunique = df[col].nunique()
+        duplicates = df[col].duplicated().sum()
+        null = df[col].isnull().sum()
+        dtype = df[col].dtypes
+        dirty_data.append([col,dtype,nunique,null,duplicates])
+    df_dirty_data_finding = pd.DataFrame(dirty_data)
+    df_dirty_data_finding.columns = ['column','dtype','nunique','null','duplicates']
+    return df_dirty_data_finding
+
+dirty_data_finding(play_store)
+
+for e in play_store.columns:
+  print(e)
+  print(play_store[e].value_counts())
+  print('\n**********************************\n')
+  
+  # removing null values
+play_store.dropna(inplace=True)
+
+dirty_data_finding(play_store)
+
+# Removing columns which are not required
+not_required=['Current Ver','Last Updated', 'Android Ver']
+play_store = play_store.drop(not_required, axis = 1)
+play_store.head()
+
+# converting the reviews to int from object
+play_store = play_store.astype({'Reviews': 'int32'})
+
+play_store['Installs'].unique()
+
+# we can use regex for this to replace , and + 
+play_store['Installs'] = play_store['Installs'].replace('[\,]', '', regex = True).replace('[\+]', '', regex = True).astype(int)
+
+play_store['Installs'].unique()
+
+# Now, we will look into other columns
+play_store.head()
+
+play_store.Type.value_counts()
+
+from sklearn.preprocessing import LabelEncoder
+labelencoder = LabelEncoder()
+play_store['Type'] = labelencoder.fit_transform(play_store['Type'])
+
+play_store.Price.value_counts()
+
+# regex can be used to remove the $ symbol along with the replace function
+play_store["Price"] = play_store["Price"].replace('[\$,]', '', regex=True).astype(float)
+
+play_store.Price.value_counts()
+
+play_store['Content Rating'].value_counts()
+
